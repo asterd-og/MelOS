@@ -189,4 +189,10 @@ fn VmmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8 {
   ret <*u8>VAddr;
 }
 
-// TODO: VmmFree() Function
+fn VmmFree(var PM: *PageMap, var VAddr: u64): void {
+  var Region: *VmaRegion = VmmGetRegion(PM, VAddr);
+  if (Region) {
+    PmmFree(Region.PAddr, Region.Pages);
+    VmmDeleteRegion(Region);
+  }
+}

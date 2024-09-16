@@ -22,9 +22,6 @@ fn MainMel(): void {
   PmmInit();
   IntInit();
   VmmInit();
-  var test: *u8 = VmmAlloc(VmmGetPM(), 1, 1 | 2);
-  memcpy(test, "Hello world from virtually allocated page!", 43);
-  printf("VMM Allocated page at %lx: %s\n", test, test);
   SchedInit();
   SchedSpawn(Idle);
   SchedSpawn(KMain);
