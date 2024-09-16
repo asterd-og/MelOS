@@ -13,7 +13,7 @@ fn Idle(): void {
 }
 
 fn KMain(): void {
-  printf("SunOS Booted.\n");
+  printf("MelOS Booted.\n");
   while (1) {
   }
 }
