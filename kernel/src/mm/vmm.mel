@@ -1,0 +1,97 @@
+import "vmm.mh";
+import "pmm.mh";
+import "mm.mh";
+import "../libc/std.mh";
+
+var VmmKernelPM: *PageMap;
+
+var [extern] LimineKeAddr: *LimineKeAddrResponse;
+
+var [extern] TextStartLD: char[1];
+var [extern] TextEndLD: char[1];
+
+var [extern] RodataStartLD: char[1];
+var [extern] RodataEndLD: char[1];
+
+var [extern] DataStartLD: char[1];
+var [extern] DataEndLD: char[1];
+
+fn VmmInit(): void {
+  VmmKernelPM = <*PageMap>HHalf(PmmAlloc(1));
+  memset(VmmKernelPM, 0, GetPgSize());
+
+  VmmKernelPM.TopLvl = <*u64>HHalf(PmmAlloc(1));
+  memset(VmmKernelPM.TopLvl, 0, GetPgSize());
+
+  var PhysBase: u64 = LimineKeAddr.PhysBase;
+  var VirtBase: u64 = LimineKeAddr.VirtBase;
+
+  var TextStart: u64 = AlignDown(<u64>TextStartLD, GetPgSize());
+  var TextEnd: u64 = AlignUp(<u64>TextEndLD, GetPgSize());
+
+  var RodataStart: u64 = AlignDown(<u64>RodataStartLD, GetPgSize());
+  var RodataEnd: u64 = AlignUp(<u64>RodataEndLD, GetPgSize());
+
+  var DataStart: u64 = AlignDown(<u64>DataStartLD, GetPgSize());
+  var DataEnd: u64 = AlignUp(<u64>DataEndLD, GetPgSize());
+
+  for (var Text: u64 = TextStart; Text < TextEnd; Text += GetPgSize()) {
+    VmmMap(VmmKernelPM, Text, Text - VirtBase + PhysBase, 1);
+  }
+  for (var Rodata: u64 = RodataStart; Rodata < RodataEnd; Rodata += GetPgSize()) {
+    VmmMap(VmmKernelPM, Rodata, Rodata - VirtBase + PhysBase, 1 | (1 << 63));
+  }
+  for (var Data: u64 = DataStart; Data < DataEnd; Data += GetPgSize()) {
+    VmmMap(VmmKernelPM, Data, Data - VirtBase + PhysBase, 1 | 2 | (1 << 63));
+  }
+  for (var Gb4: u64 = 0; Gb4 < 0x100000000; Gb4 += GetPgSize()) {
+    VmmMap(VmmKernelPM, Gb4, Gb4, 1 | 2);
+    VmmMap(VmmKernelPM, <u64>HHalf(Gb4), Gb4, 1 | 2);
+  }
+  VmmSwitchPM(VmmKernelPM);
+  printf("VMM Initialised.\n");
+}
+
+fn WriteCR3(var Val: u64): void;
+
+fn VmmSwitchPM(var PM: *PageMap): void {
+  WriteCR3(<u64>LHalf(PM.TopLvl));
+}
+
+fn VmmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64 {
+  var Flags: u64 = 0;
+  if (Present) Flags |= 1;
+  if (Writable) Flags |= 2;
+  if (User) Flags |= 4;
+  if (NX) Flags |= (1 << 63);
+  ret Flags;
+}
+
+fn PteGetAddr(var Value: u64): u64 {
+  ret Value & 0x000ffffffffff000;
+}
+
+fn PteGetFlags(var Value: u64): u64 {
+  ret Value & ~0x000ffffffffff000;
+}
+
+fn VmmGetNextLvl(var Level: *u64, var Entry: u64, var Flags: u64): *u64 {
+  if (Level[Entry] & 1) ret HHalf(PteGetAddr(Level[Entry]));
+  var PML: *u64 = HHalf(PmmAlloc(1));
+  memset(PML, 0, GetPgSize());
+  Level[Entry] = <u64>LHalf(PML) | Flags;
+  ret PML;
+}
+
+fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void {
+  var PML1Entry: u64 = (VAddr >> 12) & 0x1ff;
+  var PML2Entry: u64 = (VAddr >> 21) & 0x1ff;
+  var PML3Entry: u64 = (VAddr >> 30) & 0x1ff;
+  var PML4Entry: u64 = (VAddr >> 39) & 0x1ff;
+
+  var PML3: *u64 = VmmGetNextLvl(PM.TopLvl, PML4Entry, 1 | 2);
+  var PML2: *u64 = VmmGetNextLvl(PML3, PML3Entry, 1 | 2);
+  var PML1: *u64 = VmmGetNextLvl(PML2, PML2Entry, 1 | 2);
+
+  PML1[PML1Entry] = PAddr | Flags;
+}

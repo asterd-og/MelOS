@@ -1,0 +1,29 @@
+import "libc/std.mh";
+import "mm/pmm.mh";
+import "mm/vmm.mh";
+import "mm/mm.mh";
+import "sys/idt.mh";
+import "cast.mh";
+import "lib/linkedList.mh";
+import "sched/sched.mh";
+
+fn Idle(): void {
+  while (1) {
+  }
+}
+
+fn KMain(): void {
+  printf("SunOS Booted.\n");
+  while (1) {
+  }
+}
+
+fn MainMel(): void {
+  PmmInit();
+  IntInit();
+  VmmInit();
+  SchedInit();
+  SchedSpawn(Idle);
+  SchedSpawn(KMain);
+  SchedRegister();
+}

@@ -1,0 +1,25 @@
+fn GetPgSize(): u64 {
+  ret 4096;
+}
+
+fn DivRoundUp(var x: u64, var y: u64): u64 {
+  ret (x + (y - 1)) / y;
+}
+
+fn AlignUp(var x: u64, var y: u64): u64 {
+  ret DivRoundUp(x, y) * y;
+}
+
+fn AlignDown(var x: u64, var y: u64): u64 {
+  ret (x / y) * y;
+}
+
+var [extern] HHDMOffset: u64;
+
+fn HHalf(var addr: u64): *u8 {
+  ret <*u8>(addr + HHDMOffset);
+}
+
+fn LHalf(var addr: u64): *u8 {
+  ret <*u8>(addr - HHDMOffset);
+}

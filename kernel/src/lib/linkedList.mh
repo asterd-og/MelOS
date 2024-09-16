@@ -1,0 +1,14 @@
+struct LinkedItem {
+  var next: *LinkedItem;
+  var prev: *LinkedItem;
+  var data: *u64;
+}
+
+struct LinkedList {
+  var head: *LinkedItem;
+  var items: u64;
+}
+
+fn LlCreate(): *LinkedList;
+fn LlNewItem(var ll: *LinkedList, var data: *u64): void;
+fn LlIterate(var ll: *LinkedList): void;

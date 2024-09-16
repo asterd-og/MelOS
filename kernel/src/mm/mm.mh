@@ -1,0 +1,10 @@
+fn GetPgSize(): u64;
+
+fn AlignUp(var x: u64, var y: u64): u64;
+fn AlignDown(var x: u64, var y: u64): u64;
+
+fn HHalf(var addr: u64): *u8;
+fn LHalf(var addr: u64): *u8;
+
+fn memset(var ptr: *u8, var c: u64, var n: u64): *u8;
+fn memcpy(var dest: *u8, var src: *u8, var n: u64): *u8;

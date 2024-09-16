@@ -1,0 +1,3 @@
+fn PmmInit(): void;
+fn PmmAlloc(var Pages: u64): *u64;
+fn PmmFree(var Ptr: *u64, var Pages: u64): void;

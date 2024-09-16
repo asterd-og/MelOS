@@ -1,0 +1,43 @@
+struct [packed] IdtEntry {
+  var Low: u16;
+  var CS: u16;
+  var IST: u8;
+  var Flags: u8;
+  var Mid: u16;
+  var High: u32;
+  var Resv: u32;
+}
+
+struct [packed] IdtObject {
+  var Size: u16;
+  var Offset: u64;
+}
+
+struct [packed] Context {
+  var R15: u64;
+  var R14: u64;
+  var R13: u64;
+  var R12: u64;
+  var R11: u64;
+  var R10: u64;
+  var R9: u64;
+  var R8: u64;
+  var RDI: u64;
+  var RSI: u64;
+  var RBP: u64;
+  var RBX: u64;
+  var RDX: u64;
+  var RCX: u64;
+  var RAX: u64;
+  var IntNo: u64;
+  var ErrCode: u64;
+  var RIP: u64;
+  var CS: u64;
+  var RFlags: u64;
+  var RSP: u64;
+  var SS: u64;
+}
+
+fn IntInit(): void;
+fn IrqInstall(var Vec: u8, var Handler: *u64): void;
+fn IntSetEntry(var Vec: u8, var ISR: u64, var Flags: u8): void;

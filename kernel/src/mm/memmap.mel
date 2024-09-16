@@ -1,0 +1,19 @@
+fn MMapEntryGetStrType(var type: u64): *char {
+  if (type == 0) {
+    ret "MMap Usable";
+  } else if (type == 1) {
+    ret "MMap Reserved";
+  } else if (type == 2) {
+    ret "MMap ACPI Reclaimable";
+  } else if (type == 3) {
+    ret "MMap ACPI NVS";
+  } else if (type == 4) {
+    ret "MMap Bad Memory";
+  } else if (type == 5) {
+    ret "MMap BootLoader Reclaimable";
+  } else if (type == 6) {
+    ret "MMap Kernel and Modules";
+  } else if (type == 7) {
+    ret "MMap Framebuffer";
+  }
+}

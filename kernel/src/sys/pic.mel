@@ -1,0 +1,21 @@
+import "pic.mh";
+import "ports.mh";
+
+fn PicRemap(): void {
+  Out8(0x20, 0x10 | 0x01);
+  Out8(0xA0, 0x10 | 0x01);
+  Out8(0x21, 0x20); // Master PIC offset
+  Out8(0xA1, 0x28); // Slave  PIC offset
+  Out8(0x21, 0x04); // Tell master PIC there's slave PIC at IRQ2
+  Out8(0xA1, 0x02); // Tell slave PIC it's cascade identity
+  Out8(0x21, 0x01); // Use 8086 PIC
+  Out8(0xA1, 0x01);
+  Out8(0x21, 0); // Set mask
+  Out8(0xA1, 0);
+}
+
+fn PicEoi(var No: u8): void {
+  if (No > 7)
+    Out8(0xA0, 0x20);
+  Out8(0x20, 0x20);
+}

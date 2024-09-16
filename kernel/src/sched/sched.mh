@@ -1,0 +1,4 @@
+fn SchedSpawn(var Func: *u64): void;
+fn SchedInit(): void;
+fn Sched(): void;
+fn SchedRegister(): void;

@@ -1,0 +1,5 @@
+import "../sys/idt.mh";
+struct Task {
+  var ID: u64;
+  var Ctx: Context;
+}

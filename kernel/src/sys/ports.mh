@@ -1,0 +1,8 @@
+fn Out8(var Port: u16, var Val: u8): void;
+fn In8(var Port: u16): u8;
+
+fn Out16(var Port: u16, var Val: u16): void;
+fn In16(var Port: u16): u16;
+
+fn Out32(var Port: u16, var Val: u32): void;
+fn In32(var Port: u16): u32;

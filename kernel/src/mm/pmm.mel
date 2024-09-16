@@ -1,0 +1,115 @@
+import "../libc/std.mh";
+import "memmap.mh";
+import "mm.mh";
+import "cast.mh";
+import "pmm.mh";
+
+var Bitmap: *u8;
+var PmmFreePages: u64 = 0;
+var PmmUsedPages: u64 = 0;
+var PmmTotalPages: u64 = 0;
+var PmmLastPage: u64 = 0;
+
+fn BitmapSet(var bit: u64): void {
+  Bitmap[bit / 8] |= 1 << (bit % 8);
+}
+
+fn BitmapClear(var bit: u64): void {
+  Bitmap[bit / 8] &= ~(1 << (bit % 8));
+}
+
+fn BitmapGet(var bit: u64): u64 {
+  ret Bitmap[bit / 8] & (1 << (bit % 8));
+}
+
+var [extern] LimineMMap: *LimineMMapResponse;
+
+fn PmmInit(): void {
+  var Entry: *LimineMMapEntry;
+  var TopAddr: u64;
+  var HigherAddr: u64;
+  for (var idx: u64 = 0; idx < LimineMMap.EntryCnt; idx += 1) {
+    Entry = LimineMMap.Entries[idx];
+    if (Entry.Type == 0) {
+      TopAddr = Entry.Base + Entry.Len;
+      if (TopAddr > HigherAddr) {
+        HigherAddr = TopAddr;
+      }
+    }
+  }
+
+  PmmTotalPages = HigherAddr / GetPgSize();
+  var BitmapSize: u64 = AlignUp(PmmTotalPages / 8, GetPgSize());
+  var Found: u64 = 0;
+
+  for (var i: u64 = 0; i < 2; i += 1) {
+    Entry = LimineMMap.Entries[i];
+    if (Entry.Type == 0 && Entry.Len >= BitmapSize && Found == 0) {
+      Bitmap = HHalf(Entry.Base);
+      memset(Bitmap, 0xff, BitmapSize);
+      Entry.Base += BitmapSize;
+      Entry.Len -= BitmapSize;
+      Found = 1;
+    }
+  }
+
+  for (var i: u64 = 0; i < LimineMMap.EntryCnt; i += 1) {
+    Entry = LimineMMap.Entries[i];
+    if (Entry.Type == 0) {
+      for (var j: u64 = 0; j < Entry.Len; j += GetPgSize()) {
+        BitmapClear((Entry.Base + j) / GetPgSize());
+      }
+    }
+  }
+
+  printf("PMM Initialised.\n");
+}
+
+fn PmmFindPages(var n: u64): u64 {
+  var Pages: u64 = 0;
+  var FirstPage: u64 = PmmLastPage;
+  while (Pages < n) {
+    if (PmmLastPage == PmmTotalPages) {
+      ret 0;
+    }
+    if (BitmapGet(PmmLastPage + Pages) == 0) {
+      Pages += 1;
+      if (Pages == n) {
+        for (var i: u64 = 0; i < Pages; i += 1) {
+          BitmapSet(PmmLastPage + i);
+        }
+        PmmLastPage += Pages;
+        ret FirstPage;
+      }
+    } else {
+      if (Pages == 0)
+        PmmLastPage += 1;
+      else
+        PmmLastPage += Pages;
+      FirstPage = PmmLastPage;
+      Pages = 0;
+    }
+  }
+}
+
+fn PmmAlloc(var Pages: u64): *u64 {
+  var First: u64 = PmmFindPages(Pages);
+  var Ptr: *u64;
+  if (First == 0) {
+    PmmLastPage = 0;
+    First = PmmFindPages(Pages);
+    if (First == 0) {
+      printf("PmmAlloc(): Couldn't allocate %lu pages: Not enough memory.\n", Pages);
+      ret Ptr;
+    }
+  }
+  Ptr = First * GetPgSize();
+  ret Ptr;
+}
+
+fn PmmFree(var Ptr: *u64, var Pages: u64): void {
+  var idx: u64 = ToU64(Ptr) / GetPgSize();
+  for (var i: u64 = 0; i < Pages; i += 1) {
+    BitmapClear(idx + i);
+  }
+}

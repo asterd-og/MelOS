@@ -1,0 +1,90 @@
+import "idt.mh";
+import "../libc/std.mh";
+import "cast.mh";
+import "pic.mh";
+
+var Messages: *char[32] = [
+  "Division by zero",
+  "Debug",
+  "Non-maskable interrupt",
+  "Breakpoint",
+  "Detected overflow",
+  "Out-of-bounds",
+  "Invalid opcode",
+  "No coprocessor",
+  "Double fault",
+  "Coprocessor segment overrun",
+  "Bad TSS",
+  "Segment not present",
+  "Stack fault",
+  "General protection fault",
+  "Page fault",
+  "Unknown interrupt",
+  "Coprocessor fault",
+  "Alignment check",
+  "Machine check",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved",
+  "Reserved"
+];
+
+var [align 0x10] IdtEntries: IdtEntry[48];
+var [extern] IdtIntTable: u64[48];
+var IdtPtr: IdtObject;
+
+var IrqTable: *u64[16];
+
+fn IdtInstall(var Ptr: *IdtObject): void;
+fn CLI(): void;
+fn HLT(): void;
+fn IntCallHandler(var Handler: *u64, var Registers: *Context): void;
+
+fn IntInit(): void {
+  for (var Vec: u8 = 0; Vec < 48; Vec += 1) {
+    IntSetEntry(Vec, IdtIntTable[Vec], 0x8E);
+  }
+  IdtPtr.Size = 16 * 48 - 1;
+  IdtPtr.Offset = &IdtEntries;
+  IdtInstall(&IdtPtr);
+  PicRemap();
+}
+
+fn IsrHandler(var Registers: *Context): void {
+  printf("Caught exception %s!\n", Messages[Registers.IntNo]);
+  CLI();
+  while (1) {HLT();}
+}
+
+fn IrqInstall(var Vec: u8, var Handler: *u64): void {
+  IrqTable[Vec] = Handler;
+}
+
+fn IrqHandler(var Registers: *Context): void {
+  var Handler: *u64 = IrqTable[Registers.IntNo - 32];
+  if (Handler != 0)
+    IntCallHandler(Handler, Registers);
+  PicEoi(Registers.IntNo - 32);
+}
+
+fn IntSetEntry(var Vec: u8, var ISR: u64, var Flags: u8): void {
+  var Low: u64 = ISR & 0xFFFF;
+  var Mid: u64 = (ISR >> 16) & 0xFFFF;
+  var High: u64 = (ISR >> 32) & 0xFFFFFFFF;
+  IdtEntries[Vec].Low = <u16>Low;
+  IdtEntries[Vec].CS = 0x28;
+  IdtEntries[Vec].IST = 0;
+  IdtEntries[Vec].Flags = Flags;
+  IdtEntries[Vec].Mid = <u16>Mid;
+  IdtEntries[Vec].High = <u32>High;
+  IdtEntries[Vec].Resv = 0;
+}
