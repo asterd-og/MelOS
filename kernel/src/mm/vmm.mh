@@ -10,5 +10,6 @@ struct LimineKeAddrResponse {
 
 fn VmmInit(): void;
 fn VmmSwitchPM(var PM: *PageMap): void;
+fn VmmNewPM(): *PageMap;
 fn VmmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64;
 fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void;

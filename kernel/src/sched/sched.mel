@@ -14,6 +14,7 @@ fn SchedSpawn(var Func: *u64): void {
   var Task: *Task = HHalf(PmmAlloc(1));
   Task.ID = GlobID;
   GlobID += 1;
+  Task.PM = VmmNewPM();
   Task.Ctx.RIP = Func;
   Task.Ctx.RSP = ToU64(HHalf(PmmAlloc(1))) + 4095;
   Task.Ctx.CS = 0x28;
@@ -33,6 +34,7 @@ fn Sched(var Ctx: *Context): void {
   }
   CurrentTask = Iterator.data;
   memcpy(Ctx, &CurrentTask.Ctx, 176);
+  VmmSwitchPM(CurrentTask.PM);
 }
 
 fn SchedRegister(): void {

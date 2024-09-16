@@ -1,5 +1,7 @@
+import "../mm/vmm.mh";
 import "../sys/idt.mh";
 struct Task {
   var ID: u64;
   var Ctx: Context;
+  var PM: *PageMap;
 }

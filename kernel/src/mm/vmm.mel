@@ -58,6 +58,17 @@ fn VmmSwitchPM(var PM: *PageMap): void {
   WriteCR3(<u64>LHalf(PM.TopLvl));
 }
 
+fn VmmNewPM(): *PageMap {
+  var PM: *PageMap = <*PageMap>HHalf(PmmAlloc(1));
+  memset(PM, 0, GetPgSize());
+  PM.TopLvl = <*u64>HHalf(PmmAlloc(1));
+  memset(PM.TopLvl, 0, GetPgSize());
+  for (var i: int = 256; i < 512; i += 1) {
+    PM.TopLvl[i] = VmmKernelPM.TopLvl[i];
+  }
+  ret PM;
+}
+
 fn VmmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64 {
   var Flags: u64 = 0;
   if (Present) Flags |= 1;
@@ -75,11 +86,11 @@ fn PteGetFlags(var Value: u64): u64 {
   ret Value & ~0x000ffffffffff000;
 }
 
-fn VmmGetNextLvl(var Level: *u64, var Entry: u64, var Flags: u64): *u64 {
+fn VmmGetNextLvl(var Level: *u64, var Entry: u64): *u64 {
   if (Level[Entry] & 1) ret HHalf(PteGetAddr(Level[Entry]));
   var PML: *u64 = HHalf(PmmAlloc(1));
   memset(PML, 0, GetPgSize());
-  Level[Entry] = <u64>LHalf(PML) | Flags;
+  Level[Entry] = <u64>LHalf(PML) | 1 | 2 | 3;
   ret PML;
 }
 
@@ -89,9 +100,9 @@ fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): voi
   var PML3Entry: u64 = (VAddr >> 30) & 0x1ff;
   var PML4Entry: u64 = (VAddr >> 39) & 0x1ff;
 
-  var PML3: *u64 = VmmGetNextLvl(PM.TopLvl, PML4Entry, 1 | 2);
-  var PML2: *u64 = VmmGetNextLvl(PML3, PML3Entry, 1 | 2);
-  var PML1: *u64 = VmmGetNextLvl(PML2, PML2Entry, 1 | 2);
+  var PML3: *u64 = VmmGetNextLvl(PM.TopLvl, PML4Entry);
+  var PML2: *u64 = VmmGetNextLvl(PML3, PML3Entry);
+  var PML1: *u64 = VmmGetNextLvl(PML2, PML2Entry);
 
   PML1[PML1Entry] = PAddr | Flags;
 }
