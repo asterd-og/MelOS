@@ -108,7 +108,7 @@ fn PmmAlloc(var Pages: u64): *u64 {
 }
 
 fn PmmFree(var Ptr: *u64, var Pages: u64): void {
-  var idx: u64 = ToU64(Ptr) / GetPgSize();
+  var idx: u64 = <u64>Ptr / GetPgSize();
   for (var i: u64 = 0; i < Pages; i += 1) {
     BitmapClear(idx + i);
   }

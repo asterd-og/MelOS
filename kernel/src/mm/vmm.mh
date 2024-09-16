@@ -1,5 +1,21 @@
+struct VmaRegion {
+  var VAddr: u64;
+  var End: u64;
+
+  var Pages: u64;
+  var Flags: u64;
+
+  var PAddr: u64;
+
+  var RefCnt: u64;
+
+  var Next: *VmaRegion;
+  var Prev: *VmaRegion;
+}
+
 struct PageMap {
   var TopLvl: *u64;
+  var VmaHead: *VmaRegion;
 }
 
 struct LimineKeAddrResponse {
@@ -13,3 +29,6 @@ fn VmmSwitchPM(var PM: *PageMap): void;
 fn VmmNewPM(): *PageMap;
 fn VmmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64;
 fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void;
+fn VmmGetKePM(): *PageMap;
+fn VmmGetPM(): *PageMap;
+fn VmmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8;

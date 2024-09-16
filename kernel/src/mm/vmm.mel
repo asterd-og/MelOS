@@ -4,6 +4,7 @@ import "mm.mh";
 import "../libc/std.mh";
 
 var VmmKernelPM: *PageMap;
+var VmmCurrentPM: *PageMap;
 
 var [extern] LimineKeAddr: *LimineKeAddrResponse;
 
@@ -22,6 +23,12 @@ fn VmmInit(): void {
 
   VmmKernelPM.TopLvl = <*u64>HHalf(PmmAlloc(1));
   memset(VmmKernelPM.TopLvl, 0, GetPgSize());
+
+  VmmKernelPM.VmaHead = <*VmaRegion>HHalf(PmmAlloc(1));
+  memset(VmmKernelPM.VmaHead, 0, GetPgSize());
+
+  VmmKernelPM.VmaHead.Next = VmmKernelPM.VmaHead;
+  VmmKernelPM.VmaHead.Prev = VmmKernelPM.VmaHead;
 
   var PhysBase: u64 = LimineKeAddr.PhysBase;
   var VirtBase: u64 = LimineKeAddr.VirtBase;
@@ -55,6 +62,7 @@ fn VmmInit(): void {
 fn WriteCR3(var Val: u64): void;
 
 fn VmmSwitchPM(var PM: *PageMap): void {
+  VmmCurrentPM = PM;
   WriteCR3(<u64>LHalf(PM.TopLvl));
 }
 
@@ -106,3 +114,79 @@ fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): voi
 
   PML1[PML1Entry] = PAddr | Flags;
 }
+
+fn VmmGetKePM(): *PageMap {
+  ret VmmKernelPM;
+}
+
+fn VmmGetPM(): *PageMap {
+  ret VmmCurrentPM;
+}
+
+fn VmmCreateRegion(var PM: *PageMap, var VAddr: u64, var PAddr: u64,
+  var Pages: u64, var Flags: u64): *VmaRegion {
+  var Region: *VmaRegion = <*VmaRegion>HHalf(PmmAlloc(1));
+  Region.VAddr = VAddr;
+  Region.End = VAddr + (Pages * GetPgSize());
+  Region.PAddr = PAddr;
+  Region.Pages = Pages;
+  Region.Flags = Flags;
+  Region.RefCnt = 0;
+  Region.Next = PM.VmaHead;
+  Region.Prev = PM.VmaHead.Prev;
+  PM.VmaHead.Prev.Next = Region;
+  PM.VmaHead.Prev = Region;
+}
+
+fn VmmInsertAfterRegion(var Prev: *VmaRegion, var VAddr: u64, var PAddr: u64,
+  var Pages: u64, var Flags: u64): *VmaRegion {
+  var Region: *VmaRegion = <*VmaRegion>HHalf(PmmAlloc(1));
+  Region.VAddr = VAddr;
+  Region.End = VAddr + (Pages * GetPgSize());
+  Region.PAddr = PAddr;
+  Region.Pages = Pages;
+  Region.Flags = Flags;
+  Region.RefCnt = 0;
+  Region.Next = Prev.Next;
+  Region.Prev = Prev;
+  Prev.Next.Prev = Region;
+  Prev.Next = Region;
+  ret Region;
+}
+
+fn VmmDeleteRegion(var Region: *VmaRegion): void {
+  Region.Prev.Next = Region.Next;
+  Region.Next.Prev = Region.Prev;
+  PmmFree(LHalf(Region), 1);
+}
+
+fn VmmGetRegion(var PM: *PageMap, var VAddr: u64): *VmaRegion {
+  for (var Region: *VmaRegion = PM.VmaHead.Next; Region != PM.VmaHead; Region = Region.Next) {
+    if (Region.VAddr == VAddr)
+      ret Region;
+  }
+  ret <*VmaRegion>0;
+}
+
+fn VmmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8 {
+  var Page: *u8 = PmmAlloc(Pages);
+  if (!Page) ret <*u8>0;
+  var VAddr: u64 = PM.VmaHead.Prev.End + GetPgSize();
+  var Found: int = 0;
+  var Region: *VmaRegion;
+  for (Region = PM.VmaHead.Next; Region != PM.VmaHead; Region = Region.Next) {
+    if (Region.Next.VAddr - Region.End >= ((Pages + 1) * GetPgSize())) {
+      VAddr = Region.End + GetPgSize();
+      Region = VmmInsertAfterRegion(Region, VAddr, <u64>Page, Pages, Flags);
+      Found = 1;
+      break;
+    }
+  }
+  if (!Found) Region = VmmCreateRegion(PM, VAddr, <u64>Page, Pages, Flags);
+  for (var i: u64 = 0; i < Pages; i += 1)
+    VmmMap(PM, VAddr + (i * GetPgSize()), <u64>Page + (i * GetPgSize()), Flags);
+  Region.RefCnt += 1;
+  ret <*u8>VAddr;
+}
+
+// TODO: VmmFree() Function
