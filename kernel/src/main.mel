@@ -19,9 +19,9 @@ fn KMain(): void {
 }
 
 fn MainMel(): void {
-  PmmInit();
+  PmInit();
+  VmInit();
   IntInit();
-  VmmInit();
   SchedInit();
   SchedSpawn(Idle);
   SchedSpawn(KMain);

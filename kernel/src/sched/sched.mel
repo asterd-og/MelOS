@@ -11,12 +11,12 @@ var Iterator: *LinkedItem;
 var CurrentTask: *Task;
 
 fn SchedSpawn(var Func: *u64): void {
-  var Task: *Task = <*Task>HHalf(PmmAlloc(1));
+  var Task: *Task = <*Task>HHalf(PmAlloc(1));
   Task.ID = GlobID;
   GlobID += 1;
-  Task.PM = VmmNewPM();
+  Task.PM = VmNewPM();
   Task.Ctx.RIP = <u64>Func;
-  Task.Ctx.RSP = <u64>HHalf(PmmAlloc(1)) + 4095;
+  Task.Ctx.RSP = <u64>HHalf(PmAlloc(1)) + 4095;
   Task.Ctx.CS = 0x28;
   Task.Ctx.SS = 0x30;
   Task.Ctx.RFlags = 0x202;
@@ -34,7 +34,7 @@ fn Sched(var Ctx: *Context): void {
   }
   CurrentTask = <*Task>Iterator.data;
   memcpy(Ctx, &CurrentTask.Ctx, 176);
-  VmmSwitchPM(CurrentTask.PM);
+  VmSwitchPM(CurrentTask.PM);
 }
 
 fn SchedRegister(): void {

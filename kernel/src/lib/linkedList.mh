@@ -11,4 +11,3 @@ struct LinkedList {
 
 fn LlCreate(): *LinkedList;
 fn LlNewItem(var ll: *LinkedList, var data: *u64): void;
-fn LlIterate(var ll: *LinkedList): void;

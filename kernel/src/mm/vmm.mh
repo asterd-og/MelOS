@@ -24,12 +24,12 @@ struct LimineKeAddrResponse {
   var VirtBase: u64;
 }
 
-fn VmmInit(): void;
-fn VmmSwitchPM(var PM: *PageMap): void;
-fn VmmNewPM(): *PageMap;
-fn VmmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64;
-fn VmmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void;
-fn VmmGetKePM(): *PageMap;
-fn VmmGetPM(): *PageMap;
-fn VmmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8;
-fn VmmFree(var PM: *PageMap, var VAddr: u64): void;
+fn VmInit(): void;
+fn VmSwitchPM(var PM: *PageMap): void;
+fn VmNewPM(): *PageMap;
+fn VmGetFlags(var Present: u8, var Writable: u8, var User: u8, var NX: u8): u64;
+fn VmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void;
+fn VmGetKePM(): *PageMap;
+fn VmGetPM(): *PageMap;
+fn VmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8;
+fn VmFree(var PM: *PageMap, var VAddr: u64): void;

@@ -4,25 +4,19 @@ import "../libc/std.mh";
 import "../mm/mm.mh";
 
 fn LlCreate(): *LinkedList {
-  var list: *LinkedList = HHalf(PmmAlloc(1));
+  var list: *LinkedList = HHalf(PmAlloc(1));
   list.items = 0;
-  list.head = HHalf(PmmAlloc(1));
+  list.head = HHalf(PmAlloc(1));
   list.head.prev = list.head;
   list.head.next = list.head;
   ret list;
 }
 
 fn LlNewItem(var ll: *LinkedList, var data: *u64): void {
-  var item: *LinkedItem = HHalf(PmmAlloc(1));
+  var item: *LinkedItem = HHalf(PmAlloc(1));
   item.data = data;
   item.next = ll.head;
   item.prev = ll.head.prev;
   ll.head.prev.next = item;
   ll.head.prev = item;
-}
-
-fn LlIterate(var ll: *LinkedList): void {
-  for (var item: *LinkedItem = ll.head.next; item != ll.head; item = item.next) {
-    printf("%ld\n", item.data);
-  }
 }
