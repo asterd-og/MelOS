@@ -41,6 +41,7 @@ fn SlabCreate(var ObSize: u64): *Slab {
   Slab.Tail = <*SlabEntry>0;
   Slab.Head = SlabEntryCreate(Slab);
   Slab.Entry = Slab.Head;
+  Slab.UsedSlabCnt = 0;
   ret Slab;
 }
 
@@ -58,7 +59,11 @@ fn SlabSetAndFindFree(var Slab: *Slab): u64 {
   var IdxFound: u64 = 0;
   while (Slab.Entry.UsedCnt == GetPgSize() / Slab.ObSize) {
     if (Slab.Entry == Slab.Tail) {
-      Slab.Entry = SlabEntryCreate(Slab);
+      if (Slab.UsedSlabCnt == Slab.SlabCnt) {
+        Slab.Entry = SlabEntryCreate(Slab);
+        continue;
+      }
+      Slab.Entry = Slab.Head;
     } else {
       Slab.Entry = Slab.Entry.Next;
     }
@@ -77,6 +82,9 @@ fn SlabSetAndFindFree(var Slab: *Slab): u64 {
         IdxFound = Idx;
         Slab.Entry.Bitmap[Idx] |= (1 << (Bit));
         Slab.Entry.UsedCnt += 1;
+        if (Slab.Entry.UsedCnt == GetPgSize() / Slab.ObSize) {
+          Slab.UsedSlabCnt += 1;
+        }
         break;
       }
     }
@@ -111,6 +119,9 @@ fn SlabFree(var Ptr: *u8): void {
     var PageDif: u64 = <u64>Ptr & 0x1fff; // Find the location within page
     var Bit: u64 = PageDif / Slab.ObSize - 1; // Find the bit within bitmap
     var BitmapIdx: u64 = AlignDown(Bit, 64) / 64; // Find the bitmap in which the bit is located
+    if (Slab.UsedSlabCnt > 0) {
+      Slab.UsedSlabCnt -= 1;
+    }
     Entry.Bitmap[BitmapIdx] &= ~(1 << (Bit % 64));
     Entry.UsedCnt -= 1;
   }

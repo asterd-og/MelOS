@@ -8,6 +8,8 @@ struct SlabEntry {
 
 struct Slab {
   var ObSize: u64;
+  var UsedSlabCnt: u64;
+  var SlabCnt: u64;
   var Head: *SlabEntry;
   var Tail: *SlabEntry;
   var Entry: *SlabEntry;
