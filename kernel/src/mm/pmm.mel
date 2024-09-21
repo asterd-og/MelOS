@@ -5,8 +5,7 @@ import "cast.mh";
 import "pmm.mh";
 
 var PmStack: *u64;
-var PmStackWriteIdx: u64 = 0;
-var PmStackReadIdx: u64 = 0;
+var PmStackIdx: u64 = 0;
 var PmStackCount: u64 = 0;
 var PmFreePages: u64 = 0;
 var PmUsedPages: u64 = 0;
@@ -14,17 +13,17 @@ var PmTotalPages: u64 = 0;
 var PmLastPage: u64 = 0;
 
 fn PmStackPush(var Addr: u64): void {
-  PmStack[PmStackWriteIdx] = Addr;
-  PmStackWriteIdx += 1;
+  PmStack[PmStackIdx] = Addr;
+  PmStackIdx += 1;
 }
 
 fn PmStackPop(): u64 {
-  if (PmStackCount == PmStackReadIdx) {
+  if (PmStackIdx - 1 == 0) {
     printf("Hit limit!\n");
     ret 0;
   }
-  PmStackReadIdx += 1;
-  ret PmStack[PmStackReadIdx - 1];
+  PmStackIdx -= 1;
+  ret PmStack[PmStackIdx];
 }
 
 var [extern] LimineMMap: *LimineMMapResponse;
