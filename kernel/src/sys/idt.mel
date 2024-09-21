@@ -60,9 +60,11 @@ fn IntInit(): void {
 }
 
 fn IsrHandler(var Registers: *Context): void {
-  printf("Caught exception %s!\n", Messages[Registers.IntNo]);
   CLI();
-  while (1) {HLT();}
+  printf("Caught exception %s!\n", Messages[Registers.IntNo]);
+  printf("Register Dump:\n");
+  printf(" RIP %lx RAX %lx\n", Registers.RIP, Registers.RAX);
+  while (1) HLT();
 }
 
 fn IrqInstall(var Vec: u8, var Handler: *u64): void {

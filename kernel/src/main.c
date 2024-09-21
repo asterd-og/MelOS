@@ -39,6 +39,7 @@ static volatile struct limine_kernel_address_request kernel_address_request = {
 
 struct limine_kernel_address_response* LimineKeAddr;
 struct limine_memmap_response* LimineMMap;
+struct limine_framebuffer_response* LimineFramebuffer;
 uint64_t HHDMOffset;
 
 // Finally, define the start and end markers for the Limine requests.
@@ -141,6 +142,9 @@ void _putchar(char c)
 
 void MainMel();
 
+uint32_t defaultbg = 0x1b1c1b;
+uint32_t defaultfg = 0xffffff;
+
 // The following will be our kernel's entry point.
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
@@ -158,6 +162,7 @@ void kmain(void)
         hcf();
     }
 
+    LimineFramebuffer = framebuffer_request.response;
     LimineKeAddr = kernel_address_request.response;
     LimineMMap = memmap_request.response;
     HHDMOffset = hhdm_request.response->offset;
@@ -174,12 +179,12 @@ void kmain(void)
         framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
         NULL,
         NULL, NULL,
-        NULL, NULL,
+        &defaultbg, &defaultfg,
         NULL, NULL,
         NULL, 0, 0, 1,
-        1, 1,
+        0, 0,
         0);
-
+    
     MainMel();
 
     // We're done, just hang...

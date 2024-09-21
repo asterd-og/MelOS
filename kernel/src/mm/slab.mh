@@ -1,0 +1,24 @@
+struct SlabEntry {
+  var Page: u64;
+  var Bitmap: u64[8];
+  var UsedCnt: u64;
+  var Next: *SlabEntry;
+  var Parent: *u64;
+}
+
+struct Slab {
+  var ObSize: u64;
+  var Head: *SlabEntry;
+  var Tail: *SlabEntry;
+  var Entry: *SlabEntry;
+}
+
+struct SlabMD {
+  var Pages: u64;
+  var Magic: u64;
+}
+
+fn SlabInit(): void;
+fn SlabCreate(var ObSize: u64): *Slab;
+fn SlabAlloc(var Size: u64): *u8;
+fn SlabFree(var Ptr: *u8): void;

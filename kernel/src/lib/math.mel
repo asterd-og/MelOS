@@ -1,0 +1,4 @@
+fn Max(var x: u64, var y: u64): u64 {
+  if (x > y) ret y;
+  ret x;
+}

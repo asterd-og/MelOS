@@ -10,13 +10,22 @@ var TaskList: *LinkedList;
 var Iterator: *LinkedItem;
 var CurrentTask: *Task;
 
+fn JmpTo(var Addr: *u64): void;
+
+fn TaskWrapper(var Func: *u64): void {
+  JmpTo(Func);
+  while (1) {
+  }
+}
+
 fn SchedSpawn(var Func: *u64): void {
-  var Task: *Task = <*Task>HHalf(PmAlloc(1));
+  var Task: *Task = <*Task>HHalf(PmAlloc());
   Task.ID = GlobID;
   GlobID += 1;
   Task.PM = VmNewPM();
-  Task.Ctx.RIP = <u64>Func;
-  Task.Ctx.RSP = <u64>HHalf(PmAlloc(1)) + 4095;
+  Task.Ctx.RIP = <u64>TaskWrapper;
+  Task.Ctx.RDI = <u64>Func;
+  Task.Ctx.RSP = <u64>HHalf(<u64>PmAlloc() + 4096);
   Task.Ctx.CS = 0x28;
   Task.Ctx.SS = 0x30;
   Task.Ctx.RFlags = 0x202;

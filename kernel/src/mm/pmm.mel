@@ -4,50 +4,50 @@ import "mm.mh";
 import "cast.mh";
 import "pmm.mh";
 
-var Bitmap: *u8;
+var PmStack: *u64;
+var PmStackWriteIdx: u64 = 0;
+var PmStackReadIdx: u64 = 0;
+var PmStackCount: u64 = 0;
 var PmFreePages: u64 = 0;
 var PmUsedPages: u64 = 0;
 var PmTotalPages: u64 = 0;
 var PmLastPage: u64 = 0;
 
-fn BitmapSet(var bit: u64): void {
-  Bitmap[bit / 8] |= 1 << (bit % 8);
+fn PmStackPush(var Addr: u64): void {
+  PmStack[PmStackWriteIdx] = Addr;
+  PmStackWriteIdx += 1;
 }
 
-fn BitmapClear(var bit: u64): void {
-  Bitmap[bit / 8] &= ~(1 << (bit % 8));
-}
-
-fn BitmapGet(var bit: u64): u64 {
-  ret Bitmap[bit / 8] & (1 << (bit % 8));
+fn PmStackPop(): u64 {
+  if (PmStackCount == PmStackReadIdx) {
+    printf("Hit limit!\n");
+    ret 0;
+  }
+  PmStackReadIdx += 1;
+  ret PmStack[PmStackReadIdx - 1];
 }
 
 var [extern] LimineMMap: *LimineMMapResponse;
 
 fn PmInit(): void {
   var Entry: *LimineMMapEntry;
-  var TopAddr: u64;
-  var HigherAddr: u64;
+  var PmStackSize: u64 = 0;
   for (var idx: u64 = 0; idx < LimineMMap.EntryCnt; idx += 1) {
     Entry = LimineMMap.Entries[idx];
     if (Entry.Type == 0) {
-      TopAddr = Entry.Base + Entry.Len;
-      if (TopAddr > HigherAddr) {
-        HigherAddr = TopAddr;
-      }
+      PmStackCount += DivRoundUp(Entry.Len, GetPgSize());
     }
   }
 
-  PmTotalPages = HigherAddr / GetPgSize();
-  var BitmapSize: u64 = AlignUp(PmTotalPages / 8, GetPgSize());
+  PmStackSize = AlignUp(PmStackCount * 8, GetPgSize());
 
-  for (var i: u64 = 0; i < 2; i += 1) {
+  for (var i: u64 = 0; i < LimineMMap.EntryCnt; i += 1) {
     Entry = LimineMMap.Entries[i];
-    if (Entry.Type == 0 && Entry.Len >= BitmapSize) {
-      Bitmap = HHalf(Entry.Base);
-      memset(Bitmap, 0xff, BitmapSize);
-      Entry.Base += BitmapSize;
-      Entry.Len -= BitmapSize;
+    if (Entry.Type == 0 && Entry.Len >= PmStackSize) {
+      PmStack = HHalf(Entry.Base);
+      memset(PmStack, 0, PmStackSize);
+      Entry.Base += PmStackSize;
+      Entry.Len -= PmStackSize;
       break;
     }
   }
@@ -56,7 +56,7 @@ fn PmInit(): void {
     Entry = LimineMMap.Entries[i];
     if (Entry.Type == 0) {
       for (var j: u64 = 0; j < Entry.Len; j += GetPgSize()) {
-        BitmapClear((Entry.Base + j) / GetPgSize());
+        PmStackPush(Entry.Base + j);
       }
     }
   }
@@ -64,51 +64,15 @@ fn PmInit(): void {
   printf("Pm Initialised.\n");
 }
 
-fn PmFindPages(var n: u64): u64 {
-  var Pages: u64 = 0;
-  var FirstPage: u64 = PmLastPage;
-  while (Pages < n) {
-    if (PmLastPage == PmTotalPages) {
-      ret 0;
-    }
-    if (BitmapGet(PmLastPage + Pages) == 0) {
-      Pages += 1;
-      if (Pages == n) {
-        for (var i: u64 = 0; i < Pages; i += 1) {
-          BitmapSet(PmLastPage + i);
-        }
-        PmLastPage += Pages;
-        ret FirstPage;
-      }
-    } else {
-      if (Pages == 0)
-        PmLastPage += 1;
-      else
-        PmLastPage += Pages;
-      FirstPage = PmLastPage;
-      Pages = 0;
-    }
+fn PmAlloc(): *u8 {
+  var Ptr: u64 = PmStackPop();
+  if (!Ptr) {
+    printf("Pm: OOM.\n");
+    ret <*u8>0;
   }
+  ret <*u8>Ptr;
 }
 
-fn PmAlloc(var Pages: u64): *u64 {
-  var First: u64 = PmFindPages(Pages);
-  var Ptr: *u64;
-  if (First == 0) {
-    PmLastPage = 0;
-    First = PmFindPages(Pages);
-    if (First == 0) {
-      printf("PmAlloc(): Couldn't allocate %lu pages: Not enough memory.\n", Pages);
-      ret Ptr;
-    }
-  }
-  Ptr = First * GetPgSize();
-  ret Ptr;
-}
-
-fn PmFree(var Ptr: *u64, var Pages: u64): void {
-  var idx: u64 = <u64>Ptr / GetPgSize();
-  for (var i: u64 = 0; i < Pages; i += 1) {
-    BitmapClear(idx + i);
-  }
+fn PmFree(var Ptr: *u8): void {
+  PmStackPush(<u64>Ptr);
 }

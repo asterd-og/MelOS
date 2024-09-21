@@ -1,0 +1,9 @@
+import "slab.mh";
+
+fn Alloc(var Size: u64): *u8 {
+  ret SlabAlloc(Size);
+}
+
+fn Free(var Ptr: *u8): void {
+  SlabFree(Ptr);
+}

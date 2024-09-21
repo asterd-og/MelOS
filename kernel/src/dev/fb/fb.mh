@@ -1,0 +1,40 @@
+struct LimineVideoMode {
+  var Pitch: u64;
+  var Width: u64;
+  var Height: u64;
+  var BPP: u64;
+  var MemoryModel: u64;
+  var RedMaskSize: u64;
+  var RedMaskShift: u64;
+  var GreenMaskSize: u64;
+  var GreenMaskShift: u64;
+  var BlueMaskSize: u64;
+  var BlueMaskShift: u64;
+};
+
+struct LimineFramebuffer {
+  var Address: *u32;
+  var Width: u64;
+  var Height: u64;
+  var Pitch: u64;
+  var BPP: u64;
+  var MemoryModel: u64;
+  var RedMaskSize: u64;
+  var RedMaskShift: u64;
+  var GreenMaskSize: u64;
+  var GreenMaskShift: u64;
+  var BlueMaskSize: u64;
+  var BlueMaskShift: u64;
+  var Unused: char[7];
+  var EdidSize: u64;
+  var Edid: *u8;
+  // Limine revision 1
+  var ModeCount: u64;
+  var Modes: **LimineVideoMode;
+};
+
+struct LimineFramebufferResponse {
+  var Revision: u64;
+  var FramebufferCount: u64;
+  var Framebuffers: **LimineFramebuffer;
+};

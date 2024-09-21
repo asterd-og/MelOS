@@ -33,3 +33,4 @@ fn VmGetKePM(): *PageMap;
 fn VmGetPM(): *PageMap;
 fn VmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8;
 fn VmFree(var PM: *PageMap, var VAddr: u64): void;
+fn VmCreateRegion(var PM: *PageMap, var VAddr: u64, var Pages: u64, var Flags: u64): *VmaRegion;

@@ -18,13 +18,13 @@ var [extern] DataStartLD: char[1];
 var [extern] DataEndLD: char[1];
 
 fn VmInit(): void {
-  VmKernelPM = <*PageMap>HHalf(PmAlloc(1));
+  VmKernelPM = <*PageMap>HHalf(PmAlloc());
   memset(VmKernelPM, 0, GetPgSize());
 
-  VmKernelPM.TopLvl = <*u64>HHalf(PmAlloc(1));
+  VmKernelPM.TopLvl = <*u64>HHalf(PmAlloc());
   memset(VmKernelPM.TopLvl, 0, GetPgSize());
 
-  VmKernelPM.VmaHead = <*VmaRegion>HHalf(PmAlloc(1));
+  VmKernelPM.VmaHead = <*VmaRegion>HHalf(PmAlloc());
   memset(VmKernelPM.VmaHead, 0, GetPgSize());
 
   VmKernelPM.VmaHead.Next = VmKernelPM.VmaHead;
@@ -55,10 +55,11 @@ fn VmInit(): void {
     VmMap(VmKernelPM, Data, Data - VirtBase + PhysBase, 1 | 2 | (1 << 63));
 
   // 4 GB Section
-  for (var Gb4: u64 = 0; Gb4 < 0x100000000; Gb4 += GetPgSize()) {
+  for (var Gb4: u64 = 0x1000; Gb4 < 0x100000000; Gb4 += GetPgSize()) {
     VmMap(VmKernelPM, Gb4, Gb4, 1 | 2);
-    VmMap(VmKernelPM, <u64>HHalf(Gb4), Gb4, 1 | 2);
+    VmMap(VmKernelPM, <u64>HHalf(Gb4), Gb4, 1 | 2 | (1 << 63));
   }
+  VmCreateRegion(VmKernelPM, 0x1000, 1, 1);
 
   VmSwitchPM(VmKernelPM);
   printf("Vm Initialised.\n");
@@ -72,9 +73,9 @@ fn VmSwitchPM(var PM: *PageMap): void {
 }
 
 fn VmNewPM(): *PageMap {
-  var PM: *PageMap = <*PageMap>HHalf(PmAlloc(1));
+  var PM: *PageMap = <*PageMap>HHalf(PmAlloc());
   memset(PM, 0, GetPgSize());
-  PM.TopLvl = <*u64>HHalf(PmAlloc(1));
+  PM.TopLvl = <*u64>HHalf(PmAlloc());
   memset(PM.TopLvl, 0, GetPgSize());
   for (var i: int = 256; i < 512; i += 1) {
     PM.TopLvl[i] = VmKernelPM.TopLvl[i];
@@ -101,9 +102,13 @@ fn PteGetFlags(var Value: u64): u64 {
 
 fn VmGetNextLvl(var Level: *u64, var Entry: u64): *u64 {
   if (Level[Entry] & 1) ret HHalf(PteGetAddr(Level[Entry]));
-  var PML: *u64 = HHalf(PmAlloc(1));
+  var PML: *u64 = HHalf(PmAlloc());
+  if (!LHalf(PML)) {
+    printf("VmGetNextLvl: Unrecoverable error, couldn't allocate enough space.\n");
+    ret <*u64>0;
+  }
   memset(PML, 0, GetPgSize());
-  Level[Entry] = <u64>LHalf(PML) | 1 | 2 | 3;
+  Level[Entry] = <u64>LHalf(PML) | 1 | 2 | 4;
   ret PML;
 }
 
@@ -114,10 +119,40 @@ fn VmMap(var PM: *PageMap, var VAddr: u64, var PAddr: u64, var Flags: u64): void
   var PML4Entry: u64 = (VAddr >> 39) & 0x1ff;
 
   var PML3: *u64 = VmGetNextLvl(PM.TopLvl, PML4Entry);
+  if (!PML3) {
+    ret 0;
+  }
   var PML2: *u64 = VmGetNextLvl(PML3, PML3Entry);
+  if (!PML2) {
+    ret 0;
+  }
   var PML1: *u64 = VmGetNextLvl(PML2, PML2Entry);
+  if (!PML1) {
+    ret 0;
+  }
 
   PML1[PML1Entry] = PAddr | Flags;
+}
+
+fn VmGetPhys(var PM: *PageMap, var VAddr: u64): u64 {
+  var PML1Entry: u64 = (VAddr >> 12) & 0x1ff;
+  var PML2Entry: u64 = (VAddr >> 21) & 0x1ff;
+  var PML3Entry: u64 = (VAddr >> 30) & 0x1ff;
+  var PML4Entry: u64 = (VAddr >> 39) & 0x1ff;
+
+  var PML3: *u64 = VmGetNextLvl(PM.TopLvl, PML4Entry);
+  if (!PML3) {
+    ret 0;
+  }
+  var PML2: *u64 = VmGetNextLvl(PML3, PML3Entry);
+  if (!PML2) {
+    ret 0;
+  }
+  var PML1: *u64 = VmGetNextLvl(PML2, PML2Entry);
+  if (!PML1) {
+    ret 0;
+  }
+  ret PML1[PML1Entry] & ~0xfff;
 }
 
 fn VmGetKePM(): *PageMap {
@@ -128,12 +163,15 @@ fn VmGetPM(): *PageMap {
   ret VmCurrentPM;
 }
 
-fn VmCreateRegion(var PM: *PageMap, var VAddr: u64, var PAddr: u64,
-  var Pages: u64, var Flags: u64): *VmaRegion {
-  var Region: *VmaRegion = <*VmaRegion>HHalf(PmAlloc(1));
+fn VmCreateRegion(var PM: *PageMap, var VAddr: u64, var Pages: u64, var Flags: u64): *VmaRegion {
+  var Ptr: *u8 = PmAlloc();
+  if (!Ptr) {
+    printf("VmCreateRegion: Unrecoverable error, couldn't create region.");
+    ret <*VmaRegion>0;
+  }
+  var Region: *VmaRegion = <*VmaRegion>HHalf(<u64>Ptr);
   Region.VAddr = VAddr;
   Region.End = VAddr + (Pages * GetPgSize());
-  Region.PAddr = PAddr;
   Region.Pages = Pages;
   Region.Flags = Flags;
   Region.RefCnt = 0;
@@ -141,14 +179,17 @@ fn VmCreateRegion(var PM: *PageMap, var VAddr: u64, var PAddr: u64,
   Region.Prev = PM.VmaHead.Prev;
   PM.VmaHead.Prev.Next = Region;
   PM.VmaHead.Prev = Region;
+  ret Region;
 }
 
-fn VmInsertAfterRegion(var Prev: *VmaRegion, var VAddr: u64, var PAddr: u64,
-  var Pages: u64, var Flags: u64): *VmaRegion {
-  var Region: *VmaRegion = <*VmaRegion>HHalf(PmAlloc(1));
+fn VmInsertAfterRegion(var Prev: *VmaRegion, var VAddr: u64, var Pages: u64, var Flags: u64): *VmaRegion {
+  var Region: *VmaRegion = <*VmaRegion>HHalf(PmAlloc());
+  if (!LHalf(Region)) {
+    printf("VmCreateRegion: Unrecoverable error, couldn't create region.");
+    ret <*VmaRegion>0;
+  }
   Region.VAddr = VAddr;
   Region.End = VAddr + (Pages * GetPgSize());
-  Region.PAddr = PAddr;
   Region.Pages = Pages;
   Region.Flags = Flags;
   Region.RefCnt = 0;
@@ -162,7 +203,7 @@ fn VmInsertAfterRegion(var Prev: *VmaRegion, var VAddr: u64, var PAddr: u64,
 fn VmDeleteRegion(var Region: *VmaRegion): void {
   Region.Prev.Next = Region.Next;
   Region.Next.Prev = Region.Prev;
-  PmFree(LHalf(Region), 1);
+  PmFree(LHalf(Region));
 }
 
 fn VmGetRegion(var PM: *PageMap, var VAddr: u64): *VmaRegion {
@@ -173,22 +214,20 @@ fn VmGetRegion(var PM: *PageMap, var VAddr: u64): *VmaRegion {
 }
 
 fn VmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8 {
-  var Page: *u8 = PmAlloc(Pages);
-  if (!Page) ret <*u8>0;
-  var VAddr: u64 = PM.VmaHead.Prev.End + GetPgSize();
+  var VAddr: u64 = PM.VmaHead.Prev.End;
   var Region: *VmaRegion;
   var Found: int = 0;
   for (Region = PM.VmaHead.Next; Region != PM.VmaHead; Region = Region.Next) {
     if (Region.Next.VAddr - Region.End >= (Pages * GetPgSize())) {
       VAddr = Region.End;
       Found = 1;
-      Region = VmInsertAfterRegion(Region, VAddr, <u64>Page, Pages, Flags);
+      Region = VmInsertAfterRegion(Region, VAddr, Pages, Flags);
       break;
     }
   }
-  if (!Found) Region = VmCreateRegion(PM, VAddr, <u64>Page, Pages, Flags);
+  if (!Found) Region = VmCreateRegion(PM, VAddr, Pages, Flags);
   for (var i: u64 = 0; i < Pages; i += 1)
-    VmMap(PM, VAddr + (i * GetPgSize()), <u64>Page + (i * GetPgSize()), Flags);
+    VmMap(PM, VAddr + (i * GetPgSize()), PmAlloc(), Flags);
   Region.RefCnt += 1;
   ret <*u8>VAddr;
 }
@@ -196,7 +235,10 @@ fn VmAlloc(var PM: *PageMap, var Pages: u64, var Flags: u64): *u8 {
 fn VmFree(var PM: *PageMap, var VAddr: u64): void {
   var Region: *VmaRegion = VmGetRegion(PM, VAddr);
   if (Region) {
-    PmFree(Region.PAddr, Region.Pages);
+    for (var i: u64 = 0; i < Region.Pages; i += 1) {
+      var Page: u64 = VmGetPhys(PM, Region.VAddr + (i * GetPgSize()));
+      PmFree(Page);
+    }
     VmDeleteRegion(Region);
   }
 }

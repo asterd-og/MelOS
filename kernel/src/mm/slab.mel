@@ -1,0 +1,117 @@
+import "slab.mh";
+import "vmm.mh";
+import "mm.mh";
+import "../libc/std.mh";
+import "../lib/math.mh";
+
+var Slabs: *Slab[10];
+
+fn SlabInit(): void {
+  Slabs[0] = SlabCreate(8);
+  Slabs[1] = SlabCreate(16);
+  Slabs[2] = SlabCreate(24);
+  Slabs[3] = SlabCreate(32);
+  Slabs[4] = SlabCreate(48);
+  Slabs[5] = SlabCreate(64);
+  Slabs[6] = SlabCreate(128);
+  Slabs[7] = SlabCreate(256);
+  Slabs[8] = SlabCreate(512);
+  Slabs[9] = SlabCreate(1024);
+  printf("Slab initialised.\n");
+}
+
+fn SlabEntryCreate(var Slab: *Slab): *SlabEntry {
+  var Entry: *SlabEntry = <*SlabEntry>VmAlloc(VmGetPM(), 1, 1 | 2);
+  Entry.Page = <u64>VmAlloc(VmGetPM(), 1, 1 | 2);
+  Entry.Parent = Slab;
+  var Ptr: *u64 = <*u64>Entry.Page;
+  @Ptr = <u64>Entry;
+  Entry.Page += 8;
+  Entry.UsedCnt = 0;
+  memset(Entry.Bitmap, 0, 8 * 8);
+  Entry.Next = <*SlabEntry>0;
+  if (Slab.Tail != 0) Slab.Tail.Next = Entry;
+  Slab.Tail = Entry;
+  ret Entry;
+}
+
+fn SlabCreate(var ObSize: u64): *Slab {
+  var Slab: *Slab = <*Slab>VmAlloc(VmGetPM(), 1, 1 | 2);
+  Slab.ObSize = ObSize;
+  Slab.Tail = <*SlabEntry>0;
+  Slab.Head = SlabEntryCreate(Slab);
+  Slab.Entry = Slab.Head;
+  ret Slab;
+}
+
+fn SlabFind(var Size: u64): *Slab {
+  for (var i: u64 = 0; i < 10; i += 1)
+    if (Slabs[i].ObSize >= Size)
+      ret Slabs[i];
+  ret <*Slab>0;
+}
+
+fn SlabSetAndFindFree(var Slab: *Slab): u64 {
+  var Stop: int = 0;
+  var Found: int = 0;
+  var BitFound: u64 = 0;
+  var IdxFound: u64 = 0;
+  while (Slab.Entry.UsedCnt == GetPgSize() / Slab.ObSize) {
+    if (Slab.Entry == Slab.Tail) {
+      Slab.Entry = SlabEntryCreate(Slab);
+    } else {
+      Slab.Entry = Slab.Entry.Next;
+    }
+  }
+  for (var Idx: u64 = 0; Idx < 8; Idx += 1) {
+    if (Stop) break;
+    for (var Bit: u64 = 0; Bit < 64; Bit += 1) {
+      if (Bit > GetPgSize() / Slab.ObSize) {
+        Stop = 1;
+        break;
+      }
+      if (!(Slab.Entry.Bitmap[Idx] & (1 << (Bit)))) {
+        Stop = 1;
+        Found = 1;
+        BitFound = Bit;
+        IdxFound = Idx;
+        Slab.Entry.Bitmap[Idx] |= (1 << (Bit));
+        Slab.Entry.UsedCnt += 1;
+        break;
+      }
+    }
+  }
+  if (!Found) ret 0;
+  ret Slab.Entry.Page + (((BitFound + (IdxFound * 64)) * Slab.ObSize));
+}
+
+fn SlabAlloc(var Size: u64): *u8 {
+  var Slab: *Slab = SlabFind(Size);
+  if (Slab) {
+    ret <*u8>SlabSetAndFindFree(Slab);
+  }
+  var PageCnt: u64 = DivRoundUp(Size, GetPgSize());
+  var Pages: *u8 = VmAlloc(VmGetPM(), 1 + PageCnt, 1 | 2);
+  var Metadata: *SlabMD = <*SlabMD>Pages;
+  Metadata.Pages = PageCnt;
+  Metadata.Magic = 0xdeadbeef;
+  ret <*u8>(<u64>Pages + GetPgSize());
+}
+
+fn SlabFree(var Ptr: *u8): void {
+  if (!(<u64>Ptr & 0xfff)) {
+    var MDPtr: *u8 = <*u8>(<u64>Ptr - GetPgSize());
+    var Metadata: *SlabMD = <*SlabMD>MDPtr;
+    if (Metadata.Magic != 0xdeadbeef) ret;
+    VmFree(VmGetPM(), MDPtr);
+  } else {
+    var SlabPtr: *u64 = <*u64>AlignDown(Ptr, GetPgSize());
+    var Entry: *SlabEntry = <*SlabEntry>@SlabPtr;
+    var Slab: *Slab = <*Slab>Entry.Parent;
+    var PageDif: u64 = <u64>Ptr & 0x1fff; // Find the location within page
+    var Bit: u64 = PageDif / Slab.ObSize - 1; // Find the bit within bitmap
+    var BitmapIdx: u64 = AlignDown(Bit, 64) / 64; // Find the bitmap in which the bit is located
+    Entry.Bitmap[BitmapIdx] &= ~(1 << (Bit % 64));
+    Entry.UsedCnt -= 1;
+  }
+}

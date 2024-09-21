@@ -1,0 +1,2 @@
+fn Alloc(var Size: u64): *u8;
+fn Free(var Ptr: *u8): void;

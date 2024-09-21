@@ -1,29 +1,25 @@
 import "libc/std.mh";
 import "mm/pmm.mh";
 import "mm/vmm.mh";
+import "mm/slab.mh";
 import "mm/mm.mh";
+import "mm/alloc.mh";
 import "sys/idt.mh";
 import "cast.mh";
 import "lib/linkedList.mh";
 import "sched/sched.mh";
 
-fn Idle(): void {
-  while (1) {
-  }
-}
-
-fn KMain(): void {
-  printf("MelOS Booted.\n");
-  while (1) {
-  }
-}
-
 fn MainMel(): void {
+  IntInit();
+  printf("IDT Initialised.\n");
   PmInit();
   VmInit();
-  IntInit();
-  SchedInit();
-  SchedSpawn(Idle);
-  SchedSpawn(KMain);
-  SchedRegister();
+  SlabInit();
+  var Test: *u8 = Alloc(14);
+  memcpy(Test, "Hello world!", 13);
+  printf("%lx: %s\n", Test, Test);
+  printf("Success!\n");
+
+  while (1) {
+  }
 }
