@@ -118,7 +118,8 @@ fn SlabFree(var Ptr: *u8): void {
     var Slab: *Slab = <*Slab>Entry.Parent;
     var PageDif: u64 = <u64>Ptr & 0x1fff; // Find the location within page
     var Bit: u64 = PageDif / Slab.ObSize - 1; // Find the bit within bitmap
-    var BitmapIdx: u64 = AlignDown(Bit, 64) / 64; // Find the bitmap in which the bit is located
+    var BitmapIdx: u64 = AlignDown(Bit, 64); // Find the bitmap in which the bit is located
+    if (BitmapIdx > 0) BitmapIdx /= 64;
     if (Slab.UsedSlabCnt > 0 && Entry.UsedCnt == GetPgSize() / Slab.ObSize) {
       Slab.UsedSlabCnt -= 1;
     }
